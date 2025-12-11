@@ -247,14 +247,18 @@ export default function AudiobookPage({ onLogout }) {
         try {
             console.log('Processing URL:', url);
             
-            // Convert Google Drive/Dropbox share links to direct download URLs
+            // Convert Google Drive/Dropbox share links to streamable URLs
             let directUrl = url;
+            let fileName = 'audiobook.m4b';
             
-            // Google Drive: convert sharing link to direct download
+            // Google Drive: Use a proxy-friendly format
             if (url.includes('drive.google.com')) {
                 const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
                 if (fileIdMatch) {
-                    directUrl = `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`;
+                    const fileId = fileIdMatch[1];
+                    // Use the direct streaming URL format
+                    directUrl = `https://drive.google.com/uc?export=open&id=${fileId}`;
+                    fileName = `google-drive-${fileId}.m4b`;
                 }
             }
             // Dropbox: add dl=1 parameter
@@ -263,25 +267,52 @@ export default function AudiobookPage({ onLogout }) {
                 if (!directUrl.includes('dl=1')) {
                     directUrl += (url.includes('?') ? '&' : '?') + 'dl=1';
                 }
+                // Extract filename from Dropbox URL
+                const pathMatch = url.match(/\/([^/?]+)\?/);
+                if (pathMatch) fileName = pathMatch[1];
+            }
+            // Direct audio URL
+            else {
+                fileName = url.split('/').pop().split('?')[0] || 'audiobook.m4b';
             }
             
-            console.log('Direct URL:', directUrl);
+            console.log('Streaming URL:', directUrl);
+            console.log('Filename:', fileName);
             
-            // Extract filename from URL
-            const fileName = url.split('/').pop().split('?')[0] || 'audiobook.m4b';
+            // For Google Drive, we can't reliably get metadata without actually loading
+            // So we'll create a basic entry and let the user play to get duration
+            let duration = 0;
             
-            // Create audio element to verify URL works and get duration
-            const audio = new Audio(directUrl);
-            audio.preload = 'metadata';
+            // Try to get duration, but don't fail if we can't
+            try {
+                const audio = new Audio();
+                audio.crossOrigin = 'anonymous';
+                audio.preload = 'metadata';
+                audio.src = directUrl;
+                
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        console.log('Metadata timeout, continuing without duration');
+                        resolve();
+                    }, 10000); // Shorter timeout
+                    
+                    audio.onloadedmetadata = () => {
+                        clearTimeout(timeout);
+                        duration = audio.duration;
+                        resolve();
+                    };
+                    
+                    audio.onerror = (e) => {
+                        clearTimeout(timeout);
+                        console.log('Audio error, continuing anyway:', e);
+                        resolve(); // Don't reject, just continue
+                    };
+                });
+            } catch (err) {
+                console.log('Could not get metadata, continuing anyway:', err);
+            }
             
-            await new Promise((resolve, reject) => {
-                audio.onloadedmetadata = resolve;
-                audio.onerror = () => reject(new Error('Failed to load audio from URL. Make sure the link is public and points to an audio file.'));
-                setTimeout(() => reject(new Error('Timeout loading audio metadata')), 30000);
-            });
-            
-            const duration = audio.duration;
-            console.log('Audio duration:', duration);
+            console.log('Audio duration:', duration || 'unknown');
             
             // For URL-based files, we can't parse metadata, so use basic info
             const info = {
@@ -289,18 +320,27 @@ export default function AudiobookPage({ onLogout }) {
                 artist: 'Unknown Artist',
                 album: null,
                 cover: null,
-                duration: duration
+                duration: duration || 0
             };
             
-            // Create simple time-based chapters (30-minute segments)
+            // Create simple time-based chapters (30-minute segments) if we have duration
             const chapters = [];
-            const chapterDuration = 30 * 60; // 30 minutes
-            for (let i = 0; i < Math.ceil(duration / chapterDuration); i++) {
-                const startTime = i * chapterDuration;
+            if (duration > 0) {
+                const chapterDuration = 30 * 60; // 30 minutes
+                for (let i = 0; i < Math.ceil(duration / chapterDuration); i++) {
+                    const startTime = i * chapterDuration;
+                    chapters.push({
+                        title: `Part ${i + 1}`,
+                        startTime: startTime,
+                        duration: Math.min(chapterDuration, duration - startTime)
+                    });
+                }
+            } else {
+                // If no duration, create a single chapter
                 chapters.push({
-                    title: `Part ${i + 1}`,
-                    startTime: startTime,
-                    duration: Math.min(chapterDuration, duration - startTime)
+                    title: 'Full Audiobook',
+                    startTime: 0,
+                    duration: 0
                 });
             }
             
@@ -316,7 +356,7 @@ export default function AudiobookPage({ onLogout }) {
                     title: info.title,
                     artist: info.artist,
                     album: info.album || null,
-                    duration: duration,
+                    duration: duration || 0,
                     storagePath: directUrl, // Store the direct URL
                     coverUrl: null,
                     chapters: chapters,
