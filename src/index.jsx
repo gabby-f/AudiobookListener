@@ -6,13 +6,22 @@ import Login from './Components/Login';
 
 // Register service worker for Google Drive streaming on iOS
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/AudiobookListener/service-worker.js')
+    window.serviceWorkerReady = navigator.serviceWorker.register('/AudiobookListener/service-worker.js')
         .then(registration => {
             console.log('Service Worker registered:', registration);
+            // Wait for service worker to become active
+            return navigator.serviceWorker.ready;
+        })
+        .then(() => {
+            console.log('Service Worker is active and ready');
+            return true;
         })
         .catch(error => {
             console.error('Service Worker registration failed:', error);
+            return false;
         });
+} else {
+    window.serviceWorkerReady = Promise.resolve(false);
 }
 
 function App() {
