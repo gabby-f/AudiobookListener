@@ -22,12 +22,18 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
     const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
     const [audioUrl, setAudioUrl] = useState(null);
 
-    // Create object URL for the file
+    // Create object URL for the file (or use URL directly if it's already a string)
     useEffect(() => {
         if (file) {
-            const url = URL.createObjectURL(file);
-            setAudioUrl(url);
-            return () => URL.revokeObjectURL(url);
+            // Check if file is already a URL string (from Google Drive/Dropbox)
+            if (typeof file === 'string') {
+                setAudioUrl(file);
+            } else {
+                // It's a File/Blob object, create object URL
+                const url = URL.createObjectURL(file);
+                setAudioUrl(url);
+                return () => URL.revokeObjectURL(url);
+            }
         }
     }, [file]);
 
