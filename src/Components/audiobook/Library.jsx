@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Music } from 'lucide-react';
-import { getLibrary, deleteFile } from '../../utils/idbFileStore';
+import { getLibrary, deleteFile, getFile } from '../../utils/idbFileStore';
 
 export default function Library({ onSelectFile, onLoadingChange }) {
   const [libraryItems, setLibraryItems] = useState([]);
@@ -36,8 +36,26 @@ export default function Library({ onSelectFile, onLoadingChange }) {
   const handleSelectFile = async (fileId) => {
     onLoadingChange?.(true);
     try {
-      const entry = await getLibrary().then(items => items.find(i => i.fileId === fileId));
+      const [entry, fileBlob] = await Promise.all([
+        getLibrary().then(items => items.find(i => i.fileId === fileId)),
+        getFile(fileId)
+      ]);
+      
+      if (!entry) {
+        throw new Error('Library entry not found');
+      }
+      
+      if (!fileBlob) {
+        throw new Error('File blob not found');
+      }
+      
+      // Attach the file blob to the entry
+      entry.file = fileBlob;
+      
       onSelectFile(fileId, entry);
+    } catch (err) {
+      console.error('Error loading file from library:', err);
+      alert('Failed to load audiobook: ' + err.message);
     } finally {
       onLoadingChange?.(false);
     }
