@@ -95,14 +95,7 @@ export default function Library({ onSelectFile, onLoadingChange }) {
           console.log('✓ Loaded from cache');
           fileBlob = cachedFile;
         } else {
-          // Wait for Service Worker to be ready (for iOS CORS fix)
-          if (window.serviceWorkerReady) {
-            console.log('Waiting for Service Worker...');
-            await window.serviceWorkerReady;
-            console.log('Service Worker ready');
-          }
-          
-          // Use streaming (Service Worker handles CORS for iOS)
+          // Fetch with proper Authorization header (iOS compatible)
           if (!isSignedIn()) {
             alert('Please sign in to Google Drive first!\n\nClick "Connect Google Drive" on the upload page to sign in, then try again.');
             onLoadingChange?.(false);
@@ -110,7 +103,8 @@ export default function Library({ onSelectFile, onLoadingChange }) {
           }
           
           console.log('Setting up Google Drive stream:', driveFileId);
-          fileBlob = getStreamingUrl(driveFileId);
+          fileBlob = await getStreamingUrl(driveFileId);
+          console.log('✓ Google Drive Blob URL created');
         }
       } else if (isUrl) {
         // For external URLs (Dropbox), just use the URL directly

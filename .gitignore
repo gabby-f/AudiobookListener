@@ -24,3 +24,11 @@ yarn-error.log*
 # Large files that shouldn't be in repo
 oracleJdk-25/
 ios-safari-remote-debug-kit/
+
+# Root-level build artifacts (copies from build/ folder for GitHub Pages)
+# Note: On gh-pages branch, these are needed for deployment
+/asset-manifest.json
+/index.html
+/service-worker.js
+/static/
+/favicon.svg
