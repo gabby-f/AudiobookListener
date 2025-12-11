@@ -1,67 +1,46 @@
-# External Storage Guide (Google Drive / Dropbox)
+# External Storage Guide (Dropbox / Direct URLs)
 
-This guide shows you how to use Google Drive or Dropbox to store your audiobooks and access them from any device through your audiobook player.
+This guide shows you how to use **Dropbox** or other direct URLs to store your audiobooks and access them from any device.
+
+## ⚠️ Important: Google Drive Does NOT Work
+
+**Google Drive blocks audio streaming** due to CORS (Cross-Origin Resource Sharing) restrictions. The browser cannot play audio directly from Google Drive links.
+
+**Use Dropbox instead** - it works perfectly for streaming!
 
 ## Why Use External Storage?
 
 ✅ **No file size limits** - Upload audiobooks of any size  
-✅ **Free storage** - Use your existing Google Drive/Dropbox space  
+✅ **Free storage** - Use your existing Dropbox space  
 ✅ **Multi-device access** - Listen from any browser/device  
 ✅ **Easy management** - Organize files in folders you control  
 ✅ **No upload time** - Files stay where they are, just link them
 
 ---
 
-## Option 1: Google Drive
-
-### Step 1: Upload Audiobook to Google Drive
-
-1. Go to [Google Drive](https://drive.google.com)
-2. Click **New** → **File upload**
-3. Select your audiobook file (.m4b, .m4a, or .mp3)
-4. Wait for upload to complete
-
-### Step 2: Get Shareable Link
-
-1. Right-click on the uploaded file
-2. Click **Share** or **Get link**
-3. Change access to **Anyone with the link**
-4. Click **Copy link**
-
-Your link will look like:
-```
-https://drive.google.com/file/d/1a2B3c4D5e6F7g8H9i0J/view?usp=sharing
-```
-
-### Step 3: Add to Your Library
-
-1. Open your audiobook player
-2. Click **"Or add from Google Drive / Dropbox URL"**
-3. Paste the Google Drive link
-4. Click **Add**
-
-✅ Done! The audiobook will appear in your library and work from any device.
-
----
-
-## Option 2: Dropbox
+## Dropbox (Recommended)
 
 ### Step 1: Upload Audiobook to Dropbox
 
 1. Go to [Dropbox](https://www.dropbox.com)
 2. Click **Upload files**
-3. Select your audiobook file
+3. Select your audiobook file (.m4b, .m4a, or .mp3)
 4. Wait for upload to complete
 
 ### Step 2: Get Shareable Link
 
 1. Hover over the file and click **Share**
 2. Click **Create link** or **Copy link**
-3. Paste the link somewhere temporarily
+3. Change access to **Anyone with the link**
 
-### Step 3: Modify the Link
+Your link will look like:
+```
+https://www.dropbox.com/s/abc123/audiobook.m4b?dl=0
+```
 
-Dropbox links end with `?dl=0` - you need to change this to `?dl=1` for direct download.
+### Step 3: Modify the Link (Optional)
+
+Dropbox links end with `?dl=0`. The app will automatically convert this to `?dl=1` for streaming, but you can do it manually:
 
 **Before:**
 ```
@@ -72,6 +51,31 @@ https://www.dropbox.com/s/abc123/audiobook.m4b?dl=0
 ```
 https://www.dropbox.com/s/abc123/audiobook.m4b?dl=1
 ```
+
+### Step 4: Add to Your Library
+
+1. Open your audiobook player
+2. Click **"Or add from Dropbox / Direct URL"**
+3. Paste the Dropbox link
+4. Click **Add**
+
+✅ Done! Works from any device now.
+
+---
+
+## Why Not Google Drive?
+
+Google Drive does NOT allow direct audio streaming in web browsers due to CORS restrictions. When you try to play audio from Google Drive, you'll see:
+
+```
+Access to audio has been blocked by CORS policy
+```
+
+**Alternatives to Google Drive:**
+1. **Dropbox** (recommended, works perfectly)
+2. **OneDrive** with public sharing
+3. **Direct audio URLs** from any web server
+4. **Download and upload** the file directly to the app (up to 50MB with Supabase free tier)
 
 > **Tip:** The app will automatically convert `dl=0` to `dl=1` for you!
 

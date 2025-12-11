@@ -170,7 +170,7 @@ export default function FileUploader({ onFileSelect, onUrlSubmit, isLoading }) {
                             className="bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-600"
                         >
                             <LinkIcon className="w-4 h-4 mr-2" />
-                            Or add from Google Drive / Dropbox URL
+                            Or add from Dropbox / Direct URL
                         </Button>
                     </div>
 
@@ -187,7 +187,7 @@ export default function FileUploader({ onFileSelect, onUrlSubmit, isLoading }) {
                                     type="url"
                                     value={url}
                                     onChange={(e) => setUrl(e.target.value)}
-                                    placeholder="Paste Google Drive or Dropbox share link..."
+                                    placeholder="Paste Dropbox share link or direct audio URL..."
                                     className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                     disabled={isLoading}
                                     required
@@ -201,7 +201,10 @@ export default function FileUploader({ onFileSelect, onUrlSubmit, isLoading }) {
                                 </Button>
                             </div>
                             <p className="text-xs text-slate-400">
-                                💡 Tip: Make sure the link is set to "Anyone with the link can view"
+                                💡 Tip: Dropbox links work great! Make sure the link is set to "Anyone with the link can view"
+                            </p>
+                            <p className="text-xs text-red-400">
+                                ⚠️ Google Drive doesn't work due to streaming restrictions
                             </p>
                         </motion.form>
                     )}

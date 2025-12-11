@@ -247,22 +247,19 @@ export default function AudiobookPage({ onLogout }) {
         try {
             console.log('Processing URL:', url);
             
-            // Convert Google Drive/Dropbox share links to streamable URLs
+            // Check for Google Drive and warn user
+            if (url.includes('drive.google.com')) {
+                alert('⚠️ Google Drive does not support direct audio streaming due to CORS restrictions.\n\nPlease use one of these alternatives:\n\n1. Dropbox (works great for streaming)\n2. Download the file and upload it directly\n3. Use a different cloud storage service\n\nSorry for the inconvenience!');
+                setIsLoading(false);
+                return;
+            }
+            
+            // Convert Dropbox share links to direct download URLs
             let directUrl = url;
             let fileName = 'audiobook.m4b';
             
-            // Google Drive: Use a proxy-friendly format
-            if (url.includes('drive.google.com')) {
-                const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                if (fileIdMatch) {
-                    const fileId = fileIdMatch[1];
-                    // Use the direct streaming URL format
-                    directUrl = `https://drive.google.com/uc?export=open&id=${fileId}`;
-                    fileName = `google-drive-${fileId}.m4b`;
-                }
-            }
             // Dropbox: add dl=1 parameter
-            else if (url.includes('dropbox.com')) {
+            if (url.includes('dropbox.com')) {
                 directUrl = url.replace('dl=0', 'dl=1');
                 if (!directUrl.includes('dl=1')) {
                     directUrl += (url.includes('?') ? '&' : '?') + 'dl=1';
