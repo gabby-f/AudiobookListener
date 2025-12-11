@@ -11,6 +11,7 @@ import VolumeControl from './VolumeControl';
 export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, savedState, onSaveState }) {
     const audioRef = useRef(null);
     const lastSaveTimeRef = useRef(0);
+    const hasRestoredPositionRef = useRef(false); // Track if we've already restored the saved position
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -202,6 +203,9 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
         
         console.log('Audio URL set, forcing load:', audioUrl);
         
+        // Reset the restoration flag when a new file is loaded
+        hasRestoredPositionRef.current = false;
+        
         // iOS Safari needs explicit load() call
         audioRef.current.load();
         
@@ -214,11 +218,12 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
                 setDuration(audioRef.current.duration);
             }
             
-            // Now it's safe to seek on iOS
-            if (savedState?.playbackPosition && audioRef.current) {
+            // Only restore position once per file load
+            if (!hasRestoredPositionRef.current && savedState?.playbackPosition && audioRef.current) {
                 const position = Number(savedState.playbackPosition);
                 if (!isNaN(position) && position > 0 && position < audioRef.current.duration) {
                     console.log('Safe to seek now, seeking to:', position);
+                    hasRestoredPositionRef.current = true; // Mark as restored
                     setTimeout(() => {
                         if (audioRef.current) {
                             audioRef.current.currentTime = position;
