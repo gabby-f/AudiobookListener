@@ -95,7 +95,7 @@ export default function Library({ onSelectFile, onLoadingChange }) {
           console.log('✓ Loaded from cache');
           fileBlob = cachedFile;
         } else {
-          // Use streaming instead of downloading
+          // Use streaming (Service Worker handles CORS for iOS)
           if (!isSignedIn()) {
             alert('Please sign in to Google Drive first!\n\nClick "Connect Google Drive" on the upload page to sign in, then try again.');
             onLoadingChange?.(false);

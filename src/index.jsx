@@ -4,6 +4,17 @@ import './index.css';
 import AudiobookPage from './pages/Audiobook';
 import Login from './Components/Login';
 
+// Register service worker for Google Drive streaming on iOS
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/AudiobookListener/service-worker.js')
+        .then(registration => {
+            console.log('Service Worker registered:', registration);
+        })
+        .catch(error => {
+            console.error('Service Worker registration failed:', error);
+        });
+}
+
 function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
