@@ -1,0 +1,344 @@
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { parseBlob } from 'music-metadata-browser';
+import { extractM4BChapters, extractM4BMetadata } from '../utils/m4bParser';
+import FileUploader from '../Components/audiobook/FileUploader';
+import AudiobookPlayer from '../Components/audiobook/AudiobookPlayer';
+import Library from '../Components/audiobook/Library';
+import { 
+  uploadAudioFile, 
+  saveLibraryEntry, 
+  getLibrary,
+  updatePlaybackState,
+  getPlaybackState
+} from '../utils/supabaseClient';
+
+const STORAGE_KEY = 'audiobook_player_state';
+
+export default function AudiobookPage() {
+    const [currentFileId, setCurrentFileId] = useState(null);
+    const [audioFile, setAudioFile] = useState(null);
+    const [chapters, setChapters] = useState([]);
+    const [bookInfo, setBookInfo] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [savedState, setSavedState] = useState(null);
+    
+    // Use ref to always have access to the latest currentFileId without recreating callbacks
+    const currentFileIdRef = useRef(null);
+    
+    // Keep ref in sync with state
+    useEffect(() => {
+        currentFileIdRef.current = currentFileId;
+    }, [currentFileId]);
+
+    // Load saved state on mount
+    useEffect(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const state = JSON.parse(saved);
+                setSavedState(state);
+            } catch (error) {
+                console.error('Error loading saved state:', error);
+            }
+        }
+    }, []);
+    
+    const parseM4BChapters = useCallback(async (file) => {
+        try {
+            const extractedChapters = [];
+            const info = {
+                title: null,
+                artist: null,
+                album: null,
+                cover: null,
+                duration: 0
+            };
+            
+            // Extract metadata directly from MP4 atoms (like VLC)
+            console.log('Extracting metadata from M4B file using binary parser...');
+            const binaryMetadata = await extractM4BMetadata(file);
+            
+            if (binaryMetadata) {
+                info.title = binaryMetadata.title;
+                info.artist = binaryMetadata.artist || binaryMetadata.albumArtist;
+                info.album = binaryMetadata.album;
+                info.cover = binaryMetadata.cover;
+                info.duration = binaryMetadata.duration;
+                
+                console.log('Binary metadata extracted:', {
+                    title: info.title,
+                    artist: info.artist,
+                    hasCover: !!info.cover,
+                    duration: info.duration
+                });
+            }
+            
+            // Extract chapters using binary parsing (like VLC)
+            console.log('Extracting chapters from M4B file...');
+            const binaryChapters = await extractM4BChapters(file);
+            
+            if (binaryChapters.length > 0) {
+                console.log(`Successfully extracted ${binaryChapters.length} chapters from binary parsing`);
+                extractedChapters.push(...binaryChapters);
+            }
+            
+            // Fallback to music-metadata-browser if binary parsing didn't get everything
+            let metadata;
+            try {
+                // Only use music-metadata if we're missing critical info
+                if (!info.title || !info.duration) {
+                    metadata = await parseBlob(file, { 
+                        duration: true,
+                        skipCovers: false,
+                        native: false  // Skip native parsing to avoid Buffer issues
+                    });
+                    
+                    // Fill in missing metadata from music-metadata
+                    if (!info.title) {
+                        info.title = metadata.common.title || file.name.replace(/\.[^/.]+$/, '');
+                    }
+                    if (!info.artist) {
+                        info.artist = metadata.common.artist || metadata.common.albumartist || null;
+                    }
+                    if (!info.album) {
+                        info.album = metadata.common.album || null;
+                    }
+                    if (!info.duration || info.duration === 0) {
+                        info.duration = metadata.format.duration || 0;
+                    }
+                    
+                    // Extract cover art from music-metadata if binary parser didn't find it
+                    if (!info.cover && metadata.common.picture && metadata.common.picture.length > 0) {
+                        const picture = metadata.common.picture[0];
+                        const blob = new Blob([picture.data], { type: picture.format });
+                        const coverUrl = URL.createObjectURL(blob);
+                        console.log('Extracted cover art from music-metadata');
+                        info.cover = coverUrl;
+                    }
+                }
+                
+            } catch (metadataError) {
+                console.warn('Music-metadata fallback failed (non-critical):', metadataError.message);
+                // Use binary metadata or filename as fallback
+                if (!info.title) {
+                    info.title = file.name.replace(/\.[^/.]+$/, '');
+                }
+            }
+            
+            // Calculate chapter durations if chapters were found
+            if (extractedChapters.length > 0) {
+                extractedChapters.sort((a, b) => a.startTime - b.startTime);
+                
+                extractedChapters.forEach((chapter, index) => {
+                    const nextChapter = extractedChapters[index + 1];
+                    chapter.duration = nextChapter 
+                        ? nextChapter.startTime - chapter.startTime
+                        : info.duration - chapter.startTime;
+                });
+                
+                console.log(`Successfully extracted ${extractedChapters.length} chapters`);
+            } else if (info.duration > 0) {
+                // Fallback: create time-based chapters
+                const chapterDuration = 600; // 10 minute segments
+                const numChapters = Math.ceil(info.duration / chapterDuration);
+                
+                for (let i = 0; i < numChapters; i++) {
+                    const startTime = i * chapterDuration;
+                    extractedChapters.push({
+                        title: `Part ${i + 1}`,
+                        startTime: startTime,
+                        duration: Math.min(chapterDuration, info.duration - startTime)
+                    });
+                }
+                
+                console.log(`No chapters found. Created ${extractedChapters.length} time-based segments`);
+            }
+            
+            return { chapters: extractedChapters, info };
+            
+        } catch (error) {
+            console.error('Error parsing M4B file:', error);
+            return { 
+                chapters: [], 
+                info: { 
+                    title: file.name.replace(/\.[^/.]+$/, ''), 
+                    artist: null, 
+                    album: null,
+                    cover: null,
+                    duration: 0
+                } 
+            };
+        }
+    }, []);
+
+    const handleFileSelect = useCallback(async (file) => {
+        setIsLoading(true);
+        
+        try {
+            const { chapters: extractedChapters, info } = await parseM4BChapters(file);
+            setChapters(extractedChapters);
+            setBookInfo(info);
+            setAudioFile(file);
+            
+            // Upload file to Supabase storage and save metadata to database
+            try {
+                console.log('Uploading file to Supabase...');
+                const { storagePath, publicUrl } = await uploadAudioFile(file);
+                
+                // Extract cover art from blob URL if present
+                let coverUrl = null;
+                if (info.cover && info.cover.startsWith('blob:')) {
+                    // For blob URLs, we'll just use the publicUrl placeholder
+                    // In a real app, you might upload the cover separately
+                    coverUrl = publicUrl.replace(/m4b.*$/, 'cover.jpg');
+                }
+                
+                console.log('Saving to library...');
+                const libraryEntry = await saveLibraryEntry({
+                    fileName: file.name,
+                    title: info.title || file.name.replace(/\.[^/.]+$/, ''),
+                    artist: info.artist || 'Unknown Artist',
+                    album: info.album || null,
+                    duration: info.duration || 0,
+                    storagePath: storagePath,
+                    coverUrl: coverUrl,
+                    chapters: extractedChapters || [],
+                });
+                
+                // Store the full entry info in state for reference
+                setCurrentFileId(libraryEntry.id);
+                currentFileIdRef.current = libraryEntry.id;
+                
+                console.log('File uploaded and saved to Supabase');
+            } catch (supabaseErr) {
+                console.warn('Failed to upload to Supabase:', supabaseErr);
+                // Continue with local playback anyway
+            }
+        } catch (error) {
+            console.error('Error parsing audiobook:', error);
+            setAudioFile(file);
+            setChapters([]);
+            setBookInfo({ title: file.name.replace(/\.[^/.]+$/, '') });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [parseM4BChapters]);
+
+    const handleClose = useCallback(() => {
+        setAudioFile(null);
+        setChapters([]);
+        setBookInfo(null);
+        setCurrentFileId(null);
+        setSavedState(null);
+        // Clear saved state
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+        } catch (err) {
+            // ignore
+        }
+    }, []);
+
+    const handleLibrarySelect = useCallback(async (fileId, libraryEntry) => {
+        setIsLoading(true);
+        try {
+            // Load file from IndexedDB
+            const file = await getFile(fileId);
+            if (!file) {
+                throw new Error('File not found in storage');
+            }
+
+            console.log('Loading book from library:', libraryEntry.title, 'playback position:', libraryEntry.playbackPosition);
+
+            // Use stored chapters if available, otherwise parse
+            let chapters = libraryEntry.chapters || [];
+            if (chapters.length === 0) {
+                console.log('No stored chapters, parsing file...');
+                const { chapters: extractedChapters } = await parseM4BChapters(file);
+                chapters = extractedChapters;
+            }
+            
+            setChapters(chapters);
+            setBookInfo({
+                title: libraryEntry.title || 'Unknown',
+                artist: libraryEntry.artist || 'Unknown Artist',
+                cover: libraryEntry.cover || null,
+            });
+            
+            // Force audio remount by creating new file object
+            // This ensures clean state when switching between library items
+            const newFile = new File([file], file.name, { type: file.type });
+            setAudioFile(newFile);
+            setCurrentFileId(fileId);
+            currentFileIdRef.current = fileId;
+
+            // Load saved playback position (ensure it's a valid number)
+            const playbackPosition = typeof libraryEntry.playbackPosition === 'number' 
+                ? libraryEntry.playbackPosition 
+                : 0;
+            
+            console.log('Setting saved state with playbackPosition:', playbackPosition);
+            setSavedState({
+                playbackPosition: playbackPosition,
+                currentChapterIndex: 0,
+                volume: libraryEntry.volume !== undefined ? libraryEntry.volume : 1,
+                speed: libraryEntry.speed !== undefined ? libraryEntry.speed : 1,
+            });
+        } catch (error) {
+            console.error('Error loading file from library:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [parseM4BChapters]);
+
+    const handleSaveState = useCallback(async (state) => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        
+        // Also sync playback state to Supabase
+        const libraryId = currentFileIdRef.current;
+        if (libraryId) {
+            try {
+                await updatePlaybackState(libraryId, {
+                    currentPosition: state.playbackPosition || 0,
+                    isPlaying: false, // Set this based on actual playback state if needed
+                    playbackSpeed: state.speed !== undefined ? state.speed : 1,
+                    volume: state.volume !== undefined ? state.volume : 1,
+                    isMuted: false,
+                });
+            } catch (err) {
+                console.warn('Failed to sync playback state to Supabase:', err);
+                // Continue locally anyway
+            }
+        }
+    }, []); // Empty dependency array - callback is stable, uses ref for currentFileId
+
+    return (
+        <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+            {!audioFile ? (
+                <>
+                    <FileUploader 
+                        onFileSelect={handleFileSelect} 
+                        isLoading={isLoading}
+                    />
+                    <div className="px-6 py-8">
+                        <h2 className="text-2xl font-bold text-white mb-6">Your Library</h2>
+                        <Library 
+                            onSelectFile={handleLibrarySelect}
+                            onLoadingChange={setIsLoading}
+                        />
+                    </div>
+                </>
+            ) : (
+                <div className="h-screen">
+                    <AudiobookPlayer
+                        file={audioFile}
+                        chapters={chapters}
+                        bookInfo={bookInfo}
+                        onClose={handleClose}
+                        savedState={savedState}
+                        onSaveState={handleSaveState}
+                    />
+                </div>
+            )}
+        </div>
+    );
+}
