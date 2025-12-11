@@ -6,8 +6,8 @@ node_modules/
 # testing
 /coverage
 
-# production
-/build
+# production - allow build folder on gh-pages branch for deployment
+# /build
 
 # misc
 .DS_Store
@@ -23,5 +23,4 @@ yarn-error.log*
 
 # Large files that shouldn't be in repo
 oracleJdk-25/
-node_modules
-node_modules
+ios-safari-remote-debug-kit/
