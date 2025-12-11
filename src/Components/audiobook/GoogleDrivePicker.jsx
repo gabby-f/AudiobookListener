@@ -9,9 +9,8 @@ import {
   signOutFromGoogleDrive,
   isSignedIn as checkIsSignedIn,
   listAudioFiles,
-  downloadDriveFile,
+  getStreamingUrl,
 } from '../../utils/googleDriveClient';
-import { cacheAudiobookFile } from '../../utils/indexedDB';
 
 export default function GoogleDrivePicker({ onFileSelect, isLoading }) {
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -100,60 +99,29 @@ export default function GoogleDrivePicker({ onFileSelect, isLoading }) {
   const handleFileSelect = async (file) => {
     setLoading(true);
     setError(null);
-    
-    // Close the picker immediately for better UX
     setShowPicker(false);
     
     try {
-      console.log('Downloading file from Google Drive:', file.name);
+      console.log('Creating streaming URL for Google Drive file:', file.name);
       
-      // Check file size - iOS Safari has memory limits
-      const fileSize = file.size || 0;
-      const fileSizeMB = fileSize / (1024 * 1024);
+      // Get streaming URL instead of downloading
+      const streamingUrl = getStreamingUrl(file.id);
       
-      if (fileSizeMB > 500) {
-        alert(`⚠️ Large File Warning\n\nThis file is ${fileSizeMB.toFixed(0)}MB. iOS Safari may have trouble downloading files larger than 500MB.\n\nIf the download fails, try:\n1. Using a computer instead\n2. Using Chrome on Android\n3. Uploading a smaller file`);
-      }
+      // Create a special object that indicates this is a Google Drive stream
+      const streamFile = {
+        type: 'google-drive-stream',
+        url: streamingUrl,
+        name: file.name,
+        googleDriveId: file.id,
+        size: file.size,
+        mimeType: file.mimeType || 'audio/mp4'
+      };
       
-      const blob = await downloadDriveFile(file.id);
-      
-      // Create a File object from the blob
-      const fileObj = new File([blob], file.name, { type: file.mimeType || 'audio/mp4' });
-      
-      // Mark this file as coming from Google Drive by adding custom property
-      fileObj.googleDriveId = file.id;
-      fileObj.googleDriveName = file.name;
-      
-      // Pass to parent component (this will trigger processing)
-      onFileSelect(fileObj);
-      
-      // Cache the file in the background for faster future loads
-      console.log('Caching file for faster future loads...');
-      try {
-        await cacheAudiobookFile(file.id, fileObj);
-        console.log('✓ File cached');
-      } catch (cacheErr) {
-        console.warn('Failed to cache file (storage full?):', cacheErr);
-        // Continue anyway - file is already loaded
-      }
+      onFileSelect(streamFile);
     } catch (err) {
-      console.error('Failed to download file:', err);
-      
-      // Show user-friendly error message
-      let errorMessage = 'Failed to download file from Google Drive.\n\n';
-      
-      if (err.message?.includes('memory') || err.message?.includes('quota')) {
-        errorMessage += 'Your device ran out of memory. Try:\n• Using a computer instead\n• Closing other apps\n• Using a smaller file';
-      } else if (err.status === 403) {
-        errorMessage += 'Permission denied. Make sure you have access to this file.';
-      } else if (err.status === 404) {
-        errorMessage += 'File not found. It may have been deleted.';
-      } else {
-        errorMessage += 'This might be due to:\n• File too large for mobile\n• Network connection issue\n• Browser memory limit\n\nTry using a desktop browser.';
-      }
-      
-      alert(errorMessage);
-      setError(err.message || 'Download failed');
+      console.error('Failed to create streaming URL:', err);
+      alert('Failed to set up streaming. Make sure you are signed in to Google Drive.');
+      setError(err.message || 'Streaming setup failed');
     } finally {
       setLoading(false);
     }

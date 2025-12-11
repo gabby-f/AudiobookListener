@@ -177,36 +177,57 @@ export default function AudiobookPage({ onLogout }) {
         setIsLoading(true);
         
         try {
-            const { chapters: extractedChapters, info } = await parseM4BChapters(file);
-            setChapters(extractedChapters);
+            // Check if this is a Google Drive streaming file
+            const isGoogleDriveStream = file.type === 'google-drive-stream';
+            
+            let chapters, info;
+            
+            if (isGoogleDriveStream) {
+                // For streaming files, we can't parse metadata - use basic info
+                console.log('Setting up Google Drive stream:', file.name);
+                chapters = [{
+                    title: 'Full Audiobook',
+                    startTime: 0,
+                    duration: 0
+                }];
+                info = {
+                    title: file.name.replace(/\.[^/.]+$/, ''),
+                    artist: 'Unknown Artist',
+                    album: null,
+                    cover: null,
+                    duration: 0
+                };
+                setAudioFile(file.url); // Use streaming URL directly
+            } else {
+                // Normal file upload - parse metadata
+                const parsed = await parseM4BChapters(file);
+                chapters = parsed.chapters;
+                info = parsed.info;
+                setAudioFile(file);
+            }
+            
+            setChapters(chapters);
             setBookInfo(info);
-            setAudioFile(file);
             
-            // Check if this is a Google Drive file
-            const isGoogleDriveFile = file.googleDriveId !== undefined;
-            
-            // Save metadata to Supabase (but don't upload the file itself if from Google Drive)
+            // Save metadata to Supabase
             try {
                 let storagePath, publicUrl;
                 
-                if (isGoogleDriveFile) {
-                    // For Google Drive files, store the Drive ID instead of uploading
-                    console.log('Saving Google Drive file metadata...');
+                if (isGoogleDriveStream) {
                     storagePath = `googledrive://${file.googleDriveId}`;
-                    publicUrl = null; // Not needed for Google Drive
+                    publicUrl = null;
+                } else if (file.googleDriveId) {
+                    storagePath = `googledrive://${file.googleDriveId}`;
+                    publicUrl = null;
                 } else {
-                    // For local files, upload to Supabase storage
                     console.log('Uploading file to Supabase...');
                     const uploadResult = await uploadAudioFile(file);
                     storagePath = uploadResult.storagePath;
                     publicUrl = uploadResult.publicUrl;
                 }
                 
-                // Extract cover art from blob URL if present
                 let coverUrl = null;
                 if (info.cover && info.cover.startsWith('blob:')) {
-                    // For blob URLs, we'll just use the publicUrl placeholder
-                    // In a real app, you might upload the cover separately
                     if (publicUrl) {
                         coverUrl = publicUrl.replace(/m4b.*$/, 'cover.jpg');
                     }
@@ -221,15 +242,14 @@ export default function AudiobookPage({ onLogout }) {
                     duration: info.duration || 0,
                     storagePath: storagePath,
                     coverUrl: coverUrl,
-                    chapters: extractedChapters || [],
+                    chapters: chapters || [],
                 });
                 
-                // Store the library entry ID
                 setCurrentFileId(libraryEntry.id);
                 currentFileIdRef.current = libraryEntry.id;
                 
-                if (isGoogleDriveFile) {
-                    console.log('Google Drive file metadata saved to library');
+                if (isGoogleDriveStream) {
+                    console.log('Google Drive streaming file saved to library');
                 } else {
                     console.log('File uploaded and saved to Supabase successfully');
                 }

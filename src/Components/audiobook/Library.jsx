@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Music } from 'lucide-react';
 import { getLibrary, deleteLibraryEntry, downloadAudioFile, getPlaybackState } from '../../utils/supabaseClient';
-import { downloadDriveFile, isSignedIn } from '../../utils/googleDriveClient';
-import { getCachedAudiobookFile, cacheAudiobookFile } from '../../utils/indexedDB';
+import { isSignedIn, getStreamingUrl } from '../../utils/googleDriveClient';
+import { getCachedAudiobookFile } from '../../utils/indexedDB';
 import { extractM4BMetadata } from '../../utils/m4bParser';
 
 export default function Library({ onSelectFile, onLoadingChange }) {
@@ -85,34 +85,25 @@ export default function Library({ onSelectFile, onLoadingChange }) {
       
       let fileBlob;
       if (isGoogleDrive) {
-        // Extract Google Drive file ID and download it
         const driveFileId = item.storage_path.replace('googledrive://', '');
         
-        // Try to load from cache first
+        // Check cache first
         console.log('Checking cache for Google Drive file:', driveFileId);
         let cachedFile = await getCachedAudiobookFile(driveFileId);
         
         if (cachedFile) {
-          console.log('✓ Loaded from cache (instant)');
+          console.log('✓ Loaded from cache');
           fileBlob = cachedFile;
         } else {
-          // Check if user is signed in to Google Drive
+          // Use streaming instead of downloading
           if (!isSignedIn()) {
             alert('Please sign in to Google Drive first!\n\nClick "Connect Google Drive" on the upload page to sign in, then try again.');
             onLoadingChange?.(false);
             return;
           }
           
-          console.log('Downloading from Google Drive (not cached):', driveFileId);
-          const blob = await downloadDriveFile(driveFileId);
-          
-          // Create File object from blob
-          fileBlob = new File([blob], item.file_name, { type: 'audio/mp4' });
-          
-          // Cache it for next time (shouldn't happen often since we cache on upload)
-          console.log('Caching file...');
-          await cacheAudiobookFile(driveFileId, fileBlob);
-          console.log('✓ File cached');
+          console.log('Setting up Google Drive stream:', driveFileId);
+          fileBlob = getStreamingUrl(driveFileId);
         }
         
         fileBlob.googleDriveId = driveFileId;

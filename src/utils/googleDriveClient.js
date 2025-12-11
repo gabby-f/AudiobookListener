@@ -131,6 +131,23 @@ export async function listAudioFiles(maxResults = 100) {
 }
 
 /**
+ * Get a streaming URL for a Google Drive file
+ * This allows the audio player to stream the file instead of downloading it all at once
+ * @param {string} fileId - The ID of the file
+ * @returns {string} - Streaming URL with auth token
+ */
+export function getStreamingUrl(fileId) {
+  const token = gapi.client.getToken();
+  if (!token) {
+    throw new Error('Not signed in to Google Drive');
+  }
+  
+  // Return URL that audio element can use for streaming
+  // We'll need to use a proxy approach since we can't set custom headers on <audio> src
+  return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${token.access_token}`;
+}
+
+/**
  * Download a file from Google Drive
  * @param {string} fileId - The ID of the file to download
  * @returns {Promise<Blob>} - The file as a Blob
