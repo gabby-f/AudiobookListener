@@ -92,10 +92,30 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
 
     const handlePlayPause = useCallback(() => {
         if (!audioRef.current) return;
+        
+        console.log('Play/Pause clicked, current state:', isPlaying);
+        console.log('Audio element ready state:', audioRef.current.readyState);
+        console.log('Audio element duration:', audioRef.current.duration);
+        
         if (isPlaying) {
             audioRef.current.pause();
         } else {
-            audioRef.current.play();
+            // iOS needs explicit user interaction to start playback
+            const playPromise = audioRef.current.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log('Playback started successfully');
+                        setIsPlaying(true);
+                    })
+                    .catch((error) => {
+                        console.error('Play failed:', error);
+                        console.error('Error name:', error.name);
+                        console.error('Error message:', error.message);
+                        setIsPlaying(false);
+                    });
+                return;
+            }
         }
         setIsPlaying(!isPlaying);
     }, [isPlaying]);
@@ -161,25 +181,18 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
 
     const handleLoadedMetadata = useCallback(() => {
         if (!audioRef.current) return;
-        setDuration(audioRef.current.duration);
+        const dur = audioRef.current.duration;
+        console.log('Metadata loaded, duration:', dur);
+        setDuration(dur);
         
         // After metadata is loaded, seek to saved position if available
         if (savedState && savedState.playbackPosition !== undefined) {
             const position = Number(savedState.playbackPosition);
             if (!isNaN(position) && position > 0) {
-                console.log('Metadata loaded, seeking to:', position);
+                console.log('Seeking to saved position:', position);
                 audioRef.current.currentTime = position;
                 setCurrentTime(position);
             }
-        }
-        
-        // Attempt autoplay (will fail if user hasn't interacted with page)
-        const playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-            playPromise.catch((error) => {
-                console.log('Autoplay prevented by browser policy:', error.message);
-                // User will need to click play button manually
-            });
         }
     }, [savedState]);
 
@@ -188,6 +201,29 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
         const bufferedEnd = audioRef.current.buffered.end(audioRef.current.buffered.length - 1);
         setBuffered(bufferedEnd);
     }, []);
+
+    // Force audio load when URL changes (critical for iOS)
+    useEffect(() => {
+        if (!audioRef.current || !audioUrl) return;
+        
+        console.log('Audio URL set, forcing load:', audioUrl);
+        
+        // iOS Safari needs explicit load() call
+        audioRef.current.load();
+        
+        // Wait for canplay event before attempting any playback
+        const handleCanPlay = () => {
+            console.log('Audio can play, duration:', audioRef.current.duration);
+        };
+        
+        audioRef.current.addEventListener('canplay', handleCanPlay);
+        
+        return () => {
+            if (audioRef.current) {
+                audioRef.current.removeEventListener('canplay', handleCanPlay);
+            }
+        };
+    }, [audioUrl]);
 
     const currentChapter = chapters[currentChapterIndex];
 
@@ -202,7 +238,7 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
                 key={audioUrl}
                 ref={audioRef}
                 src={audioUrl}
-                preload="metadata"
+                preload="auto"
                 crossOrigin="anonymous"
                 playsInline
                 onTimeUpdate={handleTimeUpdateWithSave}
@@ -211,12 +247,27 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => setIsPlaying(false)}
+                onLoadStart={() => console.log('Load start')}
+                onLoadedData={() => console.log('Loaded data')}
+                onCanPlay={() => console.log('Can play')}
+                onCanPlayThrough={() => console.log('Can play through')}
                 onError={(e) => {
-                    console.error('Audio error:', e.target.error);
+                    console.error('Audio error event');
+                    console.error('Error object:', e.target.error);
                     if (e.target.error) {
                         console.error('Error code:', e.target.error.code);
                         console.error('Error message:', e.target.error.message);
+                        const codes = {
+                            1: 'MEDIA_ERR_ABORTED - fetch aborted by user',
+                            2: 'MEDIA_ERR_NETWORK - network error',
+                            3: 'MEDIA_ERR_DECODE - decode error',
+                            4: 'MEDIA_ERR_SRC_NOT_SUPPORTED - format not supported'
+                        };
+                        console.error('Error description:', codes[e.target.error.code]);
                     }
+                    console.error('Current src:', e.target.currentSrc);
+                    console.error('Network state:', e.target.networkState);
+                    console.error('Ready state:', e.target.readyState);
                 }}
             />
 
