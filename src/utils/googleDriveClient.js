@@ -132,25 +132,25 @@ export async function listAudioFiles(maxResults = 100) {
 
 /**
  * Get a streaming URL for a Google Drive file
- * Returns a URL with access token that the service worker will intercept
- * and convert to use Authorization headers for iOS Safari compatibility
+ * Uses Supabase Edge Function proxy to enable iOS Safari streaming
  * @param {string} fileId - The ID of the file
- * @returns {Promise<string>} - Streaming URL for the audio file
+ * @param {function} onProgress - Optional progress callback (not used with proxy)
+ * @returns {Promise<string>} - Proxy URL for streaming
  */
-export async function getStreamingUrl(fileId) {
+export async function getStreamingUrl(fileId, onProgress) {
   const token = gapi.client.getToken();
   if (!token) {
     throw new Error('Not signed in to Google Drive');
   }
   
-  console.log('Creating streaming URL for Google Drive file...');
+  console.log('Creating proxy streaming URL for Google Drive file...');
   
-  // Return URL with access_token - service worker will intercept and add Authorization header
-  // This allows iOS Safari to stream with range requests
-  const streamingUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${token.access_token}`;
+  // Use Supabase Edge Function proxy for iOS Safari compatibility
+  const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://yuhgjsxnzwclffnljqct.supabase.co';
+  const proxyUrl = `${supabaseUrl}/functions/v1/google-drive-proxy?fileId=${fileId}&accessToken=${token.access_token}`;
   
-  console.log('✓ Streaming URL created');
-  return streamingUrl;
+  console.log('✓ Proxy streaming URL created');
+  return proxyUrl;
 }
 
 /**

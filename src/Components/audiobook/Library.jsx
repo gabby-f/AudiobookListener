@@ -104,18 +104,9 @@ export default function Library({ onSelectFile, onLoadingChange }) {
           
           console.log('Setting up Google Drive stream:', driveFileId);
           
-          // Wait for service worker to be ready (needed for iOS Safari)
-          try {
-            const { waitForServiceWorker } = await import('../../serviceWorkerRegistration');
-            await waitForServiceWorker();
-            console.log('✓ Service Worker ready for streaming');
-          } catch (err) {
-            console.warn('Service Worker not available:', err);
-            throw new Error('Service Worker required for Google Drive streaming. Please refresh the page and try again.');
-          }
-          
+          // Use Supabase proxy for streaming (works on iOS Safari)
           fileBlob = await getStreamingUrl(driveFileId);
-          console.log('✓ Google Drive streaming URL created');
+          console.log('✓ Google Drive proxy URL ready');
         }
       } else if (isUrl) {
         // For external URLs (Dropbox), just use the URL directly
