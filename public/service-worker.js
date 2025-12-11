@@ -16,11 +16,17 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
+  // Log all requests to Google Drive API for debugging
+  if (url.hostname === 'www.googleapis.com') {
+    console.log('[SW] Intercepting Google API request:', url.pathname);
+  }
+  
   // Only intercept Google Drive API media requests
   if (url.hostname === 'www.googleapis.com' && 
       url.pathname.includes('/drive/v3/files/') && 
       url.searchParams.get('alt') === 'media') {
     
+    console.log('[SW] Handling Google Drive media request');
     event.respondWith(handleGoogleDriveRequest(event.request));
   }
 });

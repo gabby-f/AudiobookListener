@@ -1,5 +1,33 @@
 // Service Worker registration for Google Drive streaming
 
+let serviceWorkerReady = false;
+
+// Check if service worker is ready to intercept requests
+export function isServiceWorkerReady() {
+  return serviceWorkerReady;
+}
+
+// Wait for service worker to be ready
+export function waitForServiceWorker() {
+  return new Promise((resolve, reject) => {
+    if (serviceWorkerReady) {
+      resolve();
+      return;
+    }
+    
+    if (!('serviceWorker' in navigator)) {
+      reject(new Error('Service workers not supported'));
+      return;
+    }
+    
+    navigator.serviceWorker.ready.then(() => {
+      serviceWorkerReady = true;
+      console.log('✓ Service Worker is ready');
+      resolve();
+    }).catch(reject);
+  });
+}
+
 export function register() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -9,6 +37,12 @@ export function register() {
         .register(swUrl)
         .then((registration) => {
           console.log('✓ Service Worker registered:', registration.scope);
+          
+          // Check if already controlling
+          if (navigator.serviceWorker.controller) {
+            serviceWorkerReady = true;
+            console.log('✓ Service Worker is controlling the page');
+          }
           
           registration.onupdatefound = () => {
             const installingWorker = registration.installing;
