@@ -105,8 +105,6 @@ export default function Library({ onSelectFile, onLoadingChange }) {
           console.log('Setting up Google Drive stream:', driveFileId);
           fileBlob = getStreamingUrl(driveFileId);
         }
-        
-        fileBlob.googleDriveId = driveFileId;
       } else if (isUrl) {
         // For external URLs (Dropbox), just use the URL directly
         console.log('Loading from external URL');

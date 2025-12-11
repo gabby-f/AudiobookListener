@@ -1,11 +1,11 @@
 {
   "files": {
     "main.css": "/AudiobookListener/static/css/main.e1e496e6.css",
-    "main.js": "/AudiobookListener/static/js/main.eb8d5820.js",
+    "main.js": "/AudiobookListener/static/js/main.31f0e344.js",
     "index.html": "/AudiobookListener/index.html"
   },
   "entrypoints": [
     "static/css/main.e1e496e6.css",
-    "static/js/main.eb8d5820.js"
+    "static/js/main.31f0e344.js"
   ]
 }
