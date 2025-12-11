@@ -104,6 +104,16 @@ export default function GoogleDrivePicker({ onFileSelect, isLoading }) {
     try {
       console.log('Creating streaming URL for Google Drive file:', file.name);
       
+      // Check if iOS - streaming doesn't work well on iOS Safari
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      
+      if (isIOS) {
+        // On iOS, show warning that large files won't work
+        alert('⚠️ iOS Limitation\n\nGoogle Drive streaming is not supported on iOS Safari.\n\nFor best experience:\n• Use the desktop version\n• Or upload files directly from your device');
+        setLoading(false);
+        return;
+      }
+      
       // Get streaming URL instead of downloading
       const streamingUrl = getStreamingUrl(file.id);
       
