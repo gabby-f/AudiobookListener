@@ -11,6 +11,7 @@ import {
   listAudioFiles,
   downloadDriveFile,
 } from '../../utils/googleDriveClient';
+import { cacheAudiobookFile } from '../../utils/indexedDB';
 
 export default function GoogleDrivePicker({ onFileSelect, isLoading }) {
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -99,6 +100,10 @@ export default function GoogleDrivePicker({ onFileSelect, isLoading }) {
   const handleFileSelect = async (file) => {
     setLoading(true);
     setError(null);
+    
+    // Close the picker immediately for better UX
+    setShowPicker(false);
+    
     try {
       console.log('Downloading file from Google Drive:', file.name);
       const blob = await downloadDriveFile(file.id);
@@ -110,8 +115,13 @@ export default function GoogleDrivePicker({ onFileSelect, isLoading }) {
       fileObj.googleDriveId = file.id;
       fileObj.googleDriveName = file.name;
       
+      // Pass to parent component (this will trigger processing)
       onFileSelect(fileObj);
-      setShowPicker(false);
+      
+      // Cache the file in the background for faster future loads
+      console.log('Caching file for faster future loads...');
+      await cacheAudiobookFile(file.id, fileObj);
+      console.log('✓ File cached');
     } catch (err) {
       console.error('Failed to download file:', err);
       setError('Failed to download file from Google Drive');

@@ -103,14 +103,14 @@ export default function Library({ onSelectFile, onLoadingChange }) {
             return;
           }
           
-          console.log('Downloading from Google Drive:', driveFileId);
+          console.log('Downloading from Google Drive (not cached):', driveFileId);
           const blob = await downloadDriveFile(driveFileId);
           
           // Create File object from blob
           fileBlob = new File([blob], item.file_name, { type: 'audio/mp4' });
           
-          // Cache it for next time
-          console.log('Caching file for faster future loads...');
+          // Cache it for next time (shouldn't happen often since we cache on upload)
+          console.log('Caching file...');
           await cacheAudiobookFile(driveFileId, fileBlob);
           console.log('✓ File cached');
         }
