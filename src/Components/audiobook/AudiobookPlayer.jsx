@@ -202,12 +202,22 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
                 key={audioUrl}
                 ref={audioRef}
                 src={audioUrl}
+                preload="metadata"
+                crossOrigin="anonymous"
+                playsInline
                 onTimeUpdate={handleTimeUpdateWithSave}
                 onLoadedMetadata={handleLoadedMetadata}
                 onProgress={handleProgress}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => setIsPlaying(false)}
+                onError={(e) => {
+                    console.error('Audio error:', e.target.error);
+                    if (e.target.error) {
+                        console.error('Error code:', e.target.error.code);
+                        console.error('Error message:', e.target.error.message);
+                    }
+                }}
             />
 
             {/* Top Controls - Spotify Style */}
