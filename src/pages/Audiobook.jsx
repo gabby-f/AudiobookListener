@@ -13,7 +13,6 @@ import {
   updatePlaybackState,
   getPlaybackState
 } from '../utils/supabaseClient';
-import { saveFile } from '../utils/idbFileStore';
 
 const STORAGE_KEY = 'audiobook_player_state';
 
@@ -183,23 +182,6 @@ export default function AudiobookPage({ onLogout }) {
             setBookInfo(info);
             setAudioFile(file);
             
-            // Save to IndexedDB for library
-            try {
-                console.log('Saving to IndexedDB library...');
-                const fileId = await saveFile(file, {
-                    title: info.title || file.name.replace(/\.[^/.]+$/, ''),
-                    artist: info.artist || 'Unknown Artist',
-                    cover: info.cover || null,
-                    duration: info.duration || 0,
-                    chapters: extractedChapters || [],
-                });
-                setCurrentFileId(fileId);
-                currentFileIdRef.current = fileId;
-                console.log('File saved to library with ID:', fileId);
-            } catch (idbErr) {
-                console.error('Failed to save to IndexedDB:', idbErr);
-            }
-            
             // Upload file to Supabase storage and save metadata to database
             try {
                 console.log('Uploading file to Supabase...');
@@ -225,16 +207,21 @@ export default function AudiobookPage({ onLogout }) {
                     chapters: extractedChapters || [],
                 });
                 
-                console.log('File uploaded and saved to Supabase');
+                // Store the library entry ID
+                setCurrentFileId(libraryEntry.id);
+                currentFileIdRef.current = libraryEntry.id;
+                
+                console.log('File uploaded and saved to Supabase successfully');
             } catch (supabaseErr) {
-                console.warn('Failed to upload to Supabase:', supabaseErr);
-                // Continue with local playback anyway
+                console.error('Failed to upload to Supabase:', supabaseErr);
+                alert('Failed to upload to cloud storage. Please check your Supabase configuration:\n\n' + supabaseErr.message);
+                throw supabaseErr;
             }
         } catch (error) {
             console.error('Error parsing audiobook:', error);
-            setAudioFile(file);
+            setAudioFile(null);
             setChapters([]);
-            setBookInfo({ title: file.name.replace(/\.[^/.]+$/, '') });
+            setBookInfo(null);
         } finally {
             setIsLoading(false);
         }

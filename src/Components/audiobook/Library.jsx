@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Music } from 'lucide-react';
-import { getLibrary, deleteFile, getFile } from '../../utils/idbFileStore';
+import { getLibrary, deleteLibraryEntry, downloadAudioFile } from '../../utils/supabaseClient';
 
 export default function Library({ onSelectFile, onLoadingChange }) {
   const [libraryItems, setLibraryItems] = useState([]);
@@ -21,38 +21,39 @@ export default function Library({ onSelectFile, onLoadingChange }) {
     }
   };
 
-  const handleDelete = async (fileId, e) => {
+  const handleDelete = async (item, e) => {
     e.stopPropagation();
     if (!window.confirm('Delete this file from library?')) return;
     
     try {
-      await deleteFile(fileId);
-      setLibraryItems(prev => prev.filter(item => item.fileId !== fileId));
+      await deleteLibraryEntry(item.id, item.storage_path);
+      setLibraryItems(prev => prev.filter(i => i.id !== item.id));
     } catch (err) {
       console.error('Failed to delete file:', err);
+      alert('Failed to delete file: ' + err.message);
     }
   };
 
-  const handleSelectFile = async (fileId) => {
+  const handleSelectFile = async (item) => {
     onLoadingChange?.(true);
     try {
-      const [entry, fileBlob] = await Promise.all([
-        getLibrary().then(items => items.find(i => i.fileId === fileId)),
-        getFile(fileId)
-      ]);
+      console.log('Downloading file from Supabase:', item.storage_path);
       
-      if (!entry) {
-        throw new Error('Library entry not found');
-      }
+      // Download the file from Supabase storage
+      const fileBlob = await downloadAudioFile(item.storage_path);
       
       if (!fileBlob) {
-        throw new Error('File blob not found');
+        throw new Error('Failed to download file');
       }
       
-      // Attach the file blob to the entry
-      entry.file = fileBlob;
+      // Attach the file blob and metadata to the entry
+      const entry = {
+        ...item,
+        file: fileBlob,
+        fileId: item.id
+      };
       
-      onSelectFile(fileId, entry);
+      onSelectFile(item.id, entry);
     } catch (err) {
       console.error('Error loading file from library:', err);
       alert('Failed to load audiobook: ' + err.message);
@@ -103,13 +104,13 @@ export default function Library({ onSelectFile, onLoadingChange }) {
     <div className="space-y-2">
       {libraryItems.map((item) => (
         <div
-          key={item.fileId}
-          onClick={() => handleSelectFile(item.fileId)}
+          key={item.id}
+          onClick={() => handleSelectFile(item)}
           className="flex gap-4 p-4 bg-gray-800 hover:bg-gray-700 rounded-lg cursor-pointer transition-colors group"
         >
-          {item.cover ? (
+          {item.cover_url ? (
             <img
-              src={item.cover}
+              src={item.cover_url}
               alt={item.title}
               className="w-16 h-16 object-cover rounded flex-shrink-0"
             />
@@ -124,17 +125,12 @@ export default function Library({ onSelectFile, onLoadingChange }) {
             <p className="text-sm text-gray-400 truncate">{item.artist}</p>
             <div className="flex gap-3 mt-2 text-xs text-gray-500">
               <span>{formatDuration(item.duration)}</span>
-              {item.lastPlayed && <span>{formatDate(item.lastPlayed)}</span>}
-              {item.playbackPosition > 0 && (
-                <span className="text-yellow-400">
-                  {formatDuration(item.playbackPosition)} played
-                </span>
-              )}
+              {item.created_at && <span>{formatDate(item.created_at)}</span>}
             </div>
           </div>
 
           <button
-            onClick={(e) => handleDelete(item.fileId, e)}
+            onClick={(e) => handleDelete(item, e)}
             className="flex-shrink-0 p-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
             title="Delete from library"
           >

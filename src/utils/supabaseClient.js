@@ -44,6 +44,23 @@ export async function uploadAudioFile(file, onProgress) {
 }
 
 /**
+ * Download file from Supabase storage
+ */
+export async function downloadAudioFile(storagePath) {
+  try {
+    const { data, error } = await supabase.storage
+      .from('audiobooks')
+      .download(storagePath);
+
+    if (error) throw error;
+    return data; // Returns a Blob
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    throw error;
+  }
+}
+
+/**
  * Save audiobook metadata to database
  */
 export async function saveLibraryEntry(metadata) {
@@ -57,7 +74,8 @@ export async function saveLibraryEntry(metadata) {
         album: metadata.album,
         duration: metadata.duration,
         storage_path: metadata.storagePath,
-        cover_url: metadata.coverUrl || null
+        cover_url: metadata.coverUrl || null,
+        chapters: metadata.chapters || []
       }])
       .select();
 
