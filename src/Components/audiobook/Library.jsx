@@ -37,16 +37,27 @@ export default function Library({ onSelectFile, onLoadingChange }) {
   const handleSelectFile = async (item) => {
     onLoadingChange?.(true);
     try {
-      console.log('Downloading file from Supabase:', item.storage_path);
+      console.log('Loading audiobook:', item.storage_path);
       
-      // Download the file from Supabase storage
-      const fileBlob = await downloadAudioFile(item.storage_path);
+      // Check if this is a URL or a Supabase storage path
+      const isUrl = item.storage_path.startsWith('http://') || item.storage_path.startsWith('https://');
       
-      if (!fileBlob) {
-        throw new Error('Failed to download file');
+      let fileBlob;
+      if (isUrl) {
+        // For external URLs (Google Drive/Dropbox), just use the URL directly
+        console.log('Loading from external URL');
+        fileBlob = item.storage_path; // Pass the URL as-is
+      } else {
+        // For Supabase storage, download the file
+        console.log('Downloading file from Supabase:', item.storage_path);
+        fileBlob = await downloadAudioFile(item.storage_path);
+        
+        if (!fileBlob) {
+          throw new Error('Failed to download file');
+        }
       }
       
-      // Attach the file blob and metadata to the entry
+      // Attach the file blob/URL and metadata to the entry
       const entry = {
         ...item,
         file: fileBlob,

@@ -6,6 +6,14 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('audiobooks', 'audiobooks', false)
 ON CONFLICT (id) DO NOTHING;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Allow authenticated users to upload audiobooks" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated users to read audiobooks" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated users to delete audiobooks" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public to upload audiobooks" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public to read audiobooks" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public to delete audiobooks" ON storage.objects;
+
 -- Set up storage policies for authenticated users
 -- Allow authenticated users to upload files
 CREATE POLICY "Allow authenticated users to upload audiobooks"

@@ -1,8 +1,12 @@
-import React, { useCallback } from 'react';
-import { Upload, BookOpen } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { Upload, BookOpen, Link as LinkIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Button } from '../ui/button';
 
-export default function FileUploader({ onFileSelect, isLoading }) {
+export default function FileUploader({ onFileSelect, onUrlSubmit, isLoading }) {
+    const [showUrlInput, setShowUrlInput] = useState(false);
+    const [url, setUrl] = useState('');
+
     const handleDrop = useCallback((e) => {
         e.preventDefault();
         const file = e.dataTransfer.files[0];
@@ -21,6 +25,15 @@ export default function FileUploader({ onFileSelect, isLoading }) {
             onFileSelect(file);
         }
     }, [onFileSelect]);
+
+    const handleUrlSubmit = useCallback((e) => {
+        e.preventDefault();
+        if (url.trim()) {
+            onUrlSubmit(url.trim());
+            setUrl('');
+            setShowUrlInput(false);
+        }
+    }, [url, onUrlSubmit]);
 
     return (
         <motion.div
@@ -144,9 +157,54 @@ export default function FileUploader({ onFileSelect, isLoading }) {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.5 }}
-                    className="text-center mt-12 text-slate-500 text-sm"
+                    className="text-center mt-8 space-y-4"
                 >
-                    <p>📚 Upload an M4B audiobook file to start listening and exploring chapters</p>
+                    <p className="text-slate-500 text-sm">📚 Upload an M4B audiobook file to start listening</p>
+                    
+                    {/* Add from URL button */}
+                    <div>
+                        <Button
+                            onClick={() => setShowUrlInput(!showUrlInput)}
+                            disabled={isLoading}
+                            variant="outline"
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-600"
+                        >
+                            <LinkIcon className="w-4 h-4 mr-2" />
+                            Or add from Google Drive / Dropbox URL
+                        </Button>
+                    </div>
+
+                    {/* URL Input Form */}
+                    {showUrlInput && (
+                        <motion.form
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            onSubmit={handleUrlSubmit}
+                            className="max-w-2xl mx-auto mt-4 space-y-3"
+                        >
+                            <div className="flex gap-2">
+                                <input
+                                    type="url"
+                                    value={url}
+                                    onChange={(e) => setUrl(e.target.value)}
+                                    placeholder="Paste Google Drive or Dropbox share link..."
+                                    className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    disabled={isLoading}
+                                    required
+                                />
+                                <Button
+                                    type="submit"
+                                    disabled={isLoading || !url.trim()}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6"
+                                >
+                                    Add
+                                </Button>
+                            </div>
+                            <p className="text-xs text-slate-400">
+                                💡 Tip: Make sure the link is set to "Anyone with the link can view"
+                            </p>
+                        </motion.form>
+                    )}
                 </motion.div>
             </div>
         </motion.div>

@@ -241,20 +241,124 @@ export default function AudiobookPage({ onLogout }) {
         }
     }, []);
 
+    const handleUrlSubmit = useCallback(async (url) => {
+        setIsLoading(true);
+        
+        try {
+            console.log('Processing URL:', url);
+            
+            // Convert Google Drive/Dropbox share links to direct download URLs
+            let directUrl = url;
+            
+            // Google Drive: convert sharing link to direct download
+            if (url.includes('drive.google.com')) {
+                const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                if (fileIdMatch) {
+                    directUrl = `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`;
+                }
+            }
+            // Dropbox: add dl=1 parameter
+            else if (url.includes('dropbox.com')) {
+                directUrl = url.replace('dl=0', 'dl=1');
+                if (!directUrl.includes('dl=1')) {
+                    directUrl += (url.includes('?') ? '&' : '?') + 'dl=1';
+                }
+            }
+            
+            console.log('Direct URL:', directUrl);
+            
+            // Extract filename from URL
+            const fileName = url.split('/').pop().split('?')[0] || 'audiobook.m4b';
+            
+            // Create audio element to verify URL works and get duration
+            const audio = new Audio(directUrl);
+            audio.preload = 'metadata';
+            
+            await new Promise((resolve, reject) => {
+                audio.onloadedmetadata = resolve;
+                audio.onerror = () => reject(new Error('Failed to load audio from URL. Make sure the link is public and points to an audio file.'));
+                setTimeout(() => reject(new Error('Timeout loading audio metadata')), 30000);
+            });
+            
+            const duration = audio.duration;
+            console.log('Audio duration:', duration);
+            
+            // For URL-based files, we can't parse metadata, so use basic info
+            const info = {
+                title: fileName.replace(/\.[^/.]+$/, ''),
+                artist: 'Unknown Artist',
+                album: null,
+                cover: null,
+                duration: duration
+            };
+            
+            // Create simple time-based chapters (30-minute segments)
+            const chapters = [];
+            const chapterDuration = 30 * 60; // 30 minutes
+            for (let i = 0; i < Math.ceil(duration / chapterDuration); i++) {
+                const startTime = i * chapterDuration;
+                chapters.push({
+                    title: `Part ${i + 1}`,
+                    startTime: startTime,
+                    duration: Math.min(chapterDuration, duration - startTime)
+                });
+            }
+            
+            setChapters(chapters);
+            setBookInfo(info);
+            setAudioFile(directUrl); // Store URL instead of file
+            
+            // Save to Supabase (no upload needed, just save metadata with URL)
+            try {
+                console.log('Saving URL-based audiobook to library...');
+                const libraryEntry = await saveLibraryEntry({
+                    fileName: fileName,
+                    title: info.title,
+                    artist: info.artist,
+                    album: info.album || null,
+                    duration: duration,
+                    storagePath: directUrl, // Store the direct URL
+                    coverUrl: null,
+                    chapters: chapters,
+                });
+                
+                setCurrentFileId(libraryEntry.id);
+                currentFileIdRef.current = libraryEntry.id;
+                
+                console.log('URL-based audiobook saved successfully');
+            } catch (supabaseErr) {
+                console.error('Failed to save to Supabase:', supabaseErr);
+                alert('Failed to save to library: ' + supabaseErr.message);
+            }
+        } catch (error) {
+            console.error('Error processing URL:', error);
+            alert('Failed to load audiobook from URL: ' + error.message);
+            setAudioFile(null);
+            setChapters([]);
+            setBookInfo(null);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
     const handleLibrarySelect = useCallback(async (fileId, libraryEntry) => {
         setIsLoading(true);
         try {
-            // File is already loaded by Library component
+            // File is already loaded by Library component (could be blob or URL)
             const file = libraryEntry.file;
             if (!file) {
                 throw new Error('File not found in library entry');
             }
 
-            console.log('Loading book from library:', libraryEntry.title, 'playback position:', libraryEntry.playbackPosition);
+            console.log('Loading book from library:', libraryEntry.title);
 
-            // Use stored chapters if available, otherwise parse
+            // Use stored chapters if available
             let chapters = libraryEntry.chapters || [];
-            if (chapters.length === 0) {
+            
+            // If file is a URL (string), we can't parse it, must use stored chapters
+            const isUrl = typeof file === 'string';
+            
+            if (!isUrl && chapters.length === 0) {
                 console.log('No stored chapters, parsing file...');
                 const { chapters: extractedChapters } = await parseM4BChapters(file);
                 chapters = extractedChapters;
@@ -267,7 +371,14 @@ export default function AudiobookPage({ onLogout }) {
                 cover: libraryEntry.cover_url || null,
             });
             
-            // Force audio remount by creating new file object
+            // For URL-based files, use URL directly; for blobs, create new File object
+            if (isUrl) {
+                setAudioFile(file); // file is the URL string
+            } else {
+                // Force audio remount by creating new file object
+                const newFile = new File([file], file.name, { type: file.type });
+                setAudioFile(newFile);
+            }
             // This ensures clean state when switching between library items
             const newFile = new File([file], file.name, { type: file.type });
             setAudioFile(newFile);
@@ -334,7 +445,8 @@ export default function AudiobookPage({ onLogout }) {
                     )}
                     
                     <FileUploader 
-                        onFileSelect={handleFileSelect} 
+                        onFileSelect={handleFileSelect}
+                        onUrlSubmit={handleUrlSubmit}
                         isLoading={isLoading}
                     />
                     <div className="px-6 py-8">
