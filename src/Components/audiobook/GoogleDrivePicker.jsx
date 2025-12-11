@@ -106,6 +106,15 @@ export default function GoogleDrivePicker({ onFileSelect, isLoading }) {
     
     try {
       console.log('Downloading file from Google Drive:', file.name);
+      
+      // Check file size - iOS Safari has memory limits
+      const fileSize = file.size || 0;
+      const fileSizeMB = fileSize / (1024 * 1024);
+      
+      if (fileSizeMB > 500) {
+        alert(`⚠️ Large File Warning\n\nThis file is ${fileSizeMB.toFixed(0)}MB. iOS Safari may have trouble downloading files larger than 500MB.\n\nIf the download fails, try:\n1. Using a computer instead\n2. Using Chrome on Android\n3. Uploading a smaller file`);
+      }
+      
       const blob = await downloadDriveFile(file.id);
       
       // Create a File object from the blob
@@ -120,11 +129,31 @@ export default function GoogleDrivePicker({ onFileSelect, isLoading }) {
       
       // Cache the file in the background for faster future loads
       console.log('Caching file for faster future loads...');
-      await cacheAudiobookFile(file.id, fileObj);
-      console.log('✓ File cached');
+      try {
+        await cacheAudiobookFile(file.id, fileObj);
+        console.log('✓ File cached');
+      } catch (cacheErr) {
+        console.warn('Failed to cache file (storage full?):', cacheErr);
+        // Continue anyway - file is already loaded
+      }
     } catch (err) {
       console.error('Failed to download file:', err);
-      setError('Failed to download file from Google Drive');
+      
+      // Show user-friendly error message
+      let errorMessage = 'Failed to download file from Google Drive.\n\n';
+      
+      if (err.message?.includes('memory') || err.message?.includes('quota')) {
+        errorMessage += 'Your device ran out of memory. Try:\n• Using a computer instead\n• Closing other apps\n• Using a smaller file';
+      } else if (err.status === 403) {
+        errorMessage += 'Permission denied. Make sure you have access to this file.';
+      } else if (err.status === 404) {
+        errorMessage += 'File not found. It may have been deleted.';
+      } else {
+        errorMessage += 'This might be due to:\n• File too large for mobile\n• Network connection issue\n• Browser memory limit\n\nTry using a desktop browser.';
+      }
+      
+      alert(errorMessage);
+      setError(err.message || 'Download failed');
     } finally {
       setLoading(false);
     }
