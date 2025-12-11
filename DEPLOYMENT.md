@@ -24,10 +24,10 @@
 
 ## Quick Deploy Script
 
-For convenience, you can use this one-liner to build and copy:
+For convenience, you can use this one-liner to build and deploy:
 
 ```powershell
-npm run build; Copy-Item -Path build/* -Destination . -Recurse -Force; git add asset-manifest.json index.html service-worker.js static/ favicon.svg; git commit -m "Deploy update"; git push origin gh-pages
+npm run build; Copy-Item -Path build/* -Destination . -Recurse -Force; git add .; git commit -m "Deploy update"; git push origin gh-pages
 ```
 
 ## GitHub Pages Settings
