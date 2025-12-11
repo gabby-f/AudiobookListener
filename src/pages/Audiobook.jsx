@@ -1,9 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { parseBlob } from 'music-metadata-browser';
+import { LogOut } from 'lucide-react';
 import { extractM4BChapters, extractM4BMetadata } from '../utils/m4bParser';
 import FileUploader from '../Components/audiobook/FileUploader';
 import AudiobookPlayer from '../Components/audiobook/AudiobookPlayer';
 import Library from '../Components/audiobook/Library';
+import { Button } from '../Components/ui/button';
 import { 
   uploadAudioFile, 
   saveLibraryEntry, 
@@ -14,7 +16,7 @@ import {
 
 const STORAGE_KEY = 'audiobook_player_state';
 
-export default function AudiobookPage() {
+export default function AudiobookPage({ onLogout }) {
     const [currentFileId, setCurrentFileId] = useState(null);
     const [audioFile, setAudioFile] = useState(null);
     const [chapters, setChapters] = useState([]);
@@ -241,10 +243,10 @@ export default function AudiobookPage() {
     const handleLibrarySelect = useCallback(async (fileId, libraryEntry) => {
         setIsLoading(true);
         try {
-            // Load file from IndexedDB
-            const file = await getFile(fileId);
+            // File is already loaded by Library component
+            const file = libraryEntry.file;
             if (!file) {
-                throw new Error('File not found in storage');
+                throw new Error('File not found in library entry');
             }
 
             console.log('Loading book from library:', libraryEntry.title, 'playback position:', libraryEntry.playbackPosition);
@@ -261,7 +263,7 @@ export default function AudiobookPage() {
             setBookInfo({
                 title: libraryEntry.title || 'Unknown',
                 artist: libraryEntry.artist || 'Unknown Artist',
-                cover: libraryEntry.cover || null,
+                cover: libraryEntry.cover_url || null,
             });
             
             // Force audio remount by creating new file object
@@ -315,6 +317,21 @@ export default function AudiobookPage() {
         <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
             {!audioFile ? (
                 <>
+                    {/* Logout Button */}
+                    {onLogout && (
+                        <div className="absolute top-4 right-4 z-10">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={onLogout}
+                                className="text-slate-400 hover:text-white hover:bg-slate-800"
+                                title="Sign out"
+                            >
+                                <LogOut className="w-5 h-5" />
+                            </Button>
+                        </div>
+                    )}
+                    
                     <FileUploader 
                         onFileSelect={handleFileSelect} 
                         isLoading={isLoading}

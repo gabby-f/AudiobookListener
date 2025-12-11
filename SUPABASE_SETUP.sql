@@ -31,7 +31,14 @@ CREATE TABLE playback_state (
 ALTER TABLE library ENABLE ROW LEVEL SECURITY;
 ALTER TABLE playback_state ENABLE ROW LEVEL SECURITY;
 
--- Allow all operations (single user, no auth needed)
+-- OPTION 1: Single-user with secret passcode (better security)
+-- Replace 'your-secret-passcode' with a random string only you know
+-- CREATE POLICY "Single user access" ON library
+--   FOR ALL USING (current_setting('request.headers')::json->>'x-user-secret' = 'your-secret-passcode');
+-- CREATE POLICY "Single user access" ON playback_state
+--   FOR ALL USING (current_setting('request.headers')::json->>'x-user-secret' = 'your-secret-passcode');
+
+-- OPTION 2: Public access (current - anyone with link can use)
 CREATE POLICY "Allow all access" ON library
   FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access" ON playback_state

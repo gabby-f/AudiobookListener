@@ -3,12 +3,19 @@ import { createClient } from '@supabase/supabase-js';
 // Accept both CRA-style REACT_APP_* and plain SUPABASE_* envs; fallback to the provided URL
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://yuhgjsxnzwclffnljqct.supabase.co';
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+const appSecret = process.env.REACT_APP_APP_SECRET || 'MySecretKey123'; // Your secret passcode
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase credentials in .env file');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    headers: {
+      'x-app-secret': appSecret
+    }
+  }
+});
 
 /**
  * Upload M4B file to Supabase storage
