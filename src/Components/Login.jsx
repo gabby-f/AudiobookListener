@@ -101,13 +101,6 @@ export default function Login({ onLogin }) {
                             {isLoading ? 'Signing in...' : 'Sign In'}
                         </Button>
                     </form>
-
-                    {/* Hint for development */}
-                    {process.env.NODE_ENV === 'development' && (
-                        <p className="mt-4 text-xs text-slate-500 text-center">
-                            Default password: "audiobook"
-                        </p>
-                    )}
                 </div>
             </div>
         </div>
