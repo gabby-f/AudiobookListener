@@ -182,19 +182,13 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
     const handleLoadedMetadata = useCallback(() => {
         if (!audioRef.current) return;
         const dur = audioRef.current.duration;
-        console.log('Metadata loaded, duration:', dur);
-        setDuration(dur);
+        console.log('Metadata loaded, duration:', dur, 'isNaN:', isNaN(dur), 'isFinite:', isFinite(dur));
         
-        // After metadata is loaded, seek to saved position if available
-        if (savedState && savedState.playbackPosition !== undefined) {
-            const position = Number(savedState.playbackPosition);
-            if (!isNaN(position) && position > 0) {
-                console.log('Seeking to saved position:', position);
-                audioRef.current.currentTime = position;
-                setCurrentTime(position);
-            }
+        // iOS sometimes reports NaN or Infinity initially
+        if (isFinite(dur) && dur > 0) {
+            setDuration(dur);
         }
-    }, [savedState]);
+    }, []);
 
     const handleProgress = useCallback(() => {
         if (!audioRef.current || !audioRef.current.buffered.length) return;
@@ -211,19 +205,37 @@ export default function AudiobookPlayer({ file, chapters, bookInfo, onClose, sav
         // iOS Safari needs explicit load() call
         audioRef.current.load();
         
-        // Wait for canplay event before attempting any playback
-        const handleCanPlay = () => {
-            console.log('Audio can play, duration:', audioRef.current.duration);
+        // iOS: Only seek after audio is fully ready to play
+        const handleCanPlayThrough = () => {
+            console.log('Audio can play through, duration:', audioRef.current?.duration);
+            
+            // Update duration if it wasn't set yet
+            if (audioRef.current && isFinite(audioRef.current.duration)) {
+                setDuration(audioRef.current.duration);
+            }
+            
+            // Now it's safe to seek on iOS
+            if (savedState?.playbackPosition && audioRef.current) {
+                const position = Number(savedState.playbackPosition);
+                if (!isNaN(position) && position > 0 && position < audioRef.current.duration) {
+                    console.log('Safe to seek now, seeking to:', position);
+                    setTimeout(() => {
+                        if (audioRef.current) {
+                            audioRef.current.currentTime = position;
+                        }
+                    }, 100);
+                }
+            }
         };
         
-        audioRef.current.addEventListener('canplay', handleCanPlay);
+        audioRef.current.addEventListener('canplaythrough', handleCanPlayThrough);
         
         return () => {
             if (audioRef.current) {
-                audioRef.current.removeEventListener('canplay', handleCanPlay);
+                audioRef.current.removeEventListener('canplaythrough', handleCanPlayThrough);
             }
         };
-    }, [audioUrl]);
+    }, [audioUrl, savedState]);
 
     const currentChapter = chapters[currentChapterIndex];
 
