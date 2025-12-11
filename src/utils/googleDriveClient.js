@@ -132,10 +132,10 @@ export async function listAudioFiles(maxResults = 100) {
 
 /**
  * Get a streaming URL for a Google Drive file
- * For iOS Safari compatibility, we fetch the audio with proper Authorization headers
- * and return a Blob URL instead of using access_token in the URL
+ * Returns a URL with access token that the service worker will intercept
+ * and convert to use Authorization headers for iOS Safari compatibility
  * @param {string} fileId - The ID of the file
- * @returns {Promise<string>} - Blob URL for the audio file
+ * @returns {Promise<string>} - Streaming URL for the audio file
  */
 export async function getStreamingUrl(fileId) {
   const token = gapi.client.getToken();
@@ -143,29 +143,14 @@ export async function getStreamingUrl(fileId) {
     throw new Error('Not signed in to Google Drive');
   }
   
-  console.log('Fetching Google Drive file with Authorization header...');
+  console.log('Creating streaming URL for Google Drive file...');
   
-  // Fetch the file with proper Authorization header (iOS compatible)
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    {
-      headers: {
-        'Authorization': `Bearer ${token.access_token}`,
-      },
-    }
-  );
+  // Return URL with access_token - service worker will intercept and add Authorization header
+  // This allows iOS Safari to stream with range requests
+  const streamingUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${token.access_token}`;
   
-  if (!response.ok) {
-    throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-  }
-  
-  // Get the audio blob
-  const blob = await response.blob();
-  console.log('✓ Fetched audio file, creating Blob URL');
-  
-  // Create a Blob URL that can be used by the audio element
-  const blobUrl = URL.createObjectURL(blob);
-  return blobUrl;
+  console.log('✓ Streaming URL created');
+  return streamingUrl;
 }
 
 /**

@@ -102,9 +102,9 @@ export default function GoogleDrivePicker({ onFileSelect, isLoading }) {
     setShowPicker(false);
     
     try {
-      console.log('Creating Blob URL for Google Drive file:', file.name);
+      console.log('Creating streaming URL for Google Drive file:', file.name);
       
-      // Download the file and create a Blob URL (works on all platforms including iOS)
+      // Get streaming URL (service worker handles auth for iOS Safari)
       const streamingUrl = await getStreamingUrl(file.id);
       
       // Create a special object that indicates this is a Google Drive stream

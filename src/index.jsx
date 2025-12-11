@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import AudiobookPage from './pages/Audiobook';
 import Login from './Components/Login';
+import * as serviceWorkerRegistration from './serviceWorkerRegistration';
 
 function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -47,3 +48,6 @@ root.render(
         <App />
     </React.StrictMode>
 );
+
+// Register service worker for Google Drive streaming
+serviceWorkerRegistration.register();
