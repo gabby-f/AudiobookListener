@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Music } from 'lucide-react';
 import { getLibrary, deleteLibraryEntry, downloadAudioFile, getPlaybackState } from '../../utils/supabaseClient';
-import { downloadDriveFile } from '../../utils/googleDriveClient';
+import { downloadDriveFile, isSignedIn } from '../../utils/googleDriveClient';
 import { getCachedAudiobookFile, cacheAudiobookFile } from '../../utils/indexedDB';
 import { extractM4BMetadata } from '../../utils/m4bParser';
 
@@ -96,6 +96,13 @@ export default function Library({ onSelectFile, onLoadingChange }) {
           console.log('✓ Loaded from cache (instant)');
           fileBlob = cachedFile;
         } else {
+          // Check if user is signed in to Google Drive
+          if (!isSignedIn()) {
+            alert('Please sign in to Google Drive first!\n\nClick "Connect Google Drive" on the upload page to sign in, then try again.');
+            onLoadingChange?.(false);
+            return;
+          }
+          
           console.log('Downloading from Google Drive:', driveFileId);
           const blob = await downloadDriveFile(driveFileId);
           
