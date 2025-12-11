@@ -1,13 +1,11 @@
 {
   "files": {
-    "main.css": "/static/css/main.ccce3a15.css",
-    "main.js": "/static/js/main.9e43836e.js",
-    "index.html": "/index.html",
-    "main.ccce3a15.css.map": "/static/css/main.ccce3a15.css.map",
-    "main.9e43836e.js.map": "/static/js/main.9e43836e.js.map"
+    "main.css": "/AudiobookListener/static/css/main.5cfbda92.css",
+    "main.js": "/AudiobookListener/static/js/main.7cf14cef.js",
+    "index.html": "/AudiobookListener/index.html"
   },
   "entrypoints": [
-    "static/css/main.ccce3a15.css",
-    "static/js/main.9e43836e.js"
+    "static/css/main.5cfbda92.css",
+    "static/js/main.7cf14cef.js"
   ]
 }
