@@ -182,17 +182,34 @@ export default function AudiobookPage({ onLogout }) {
             setBookInfo(info);
             setAudioFile(file);
             
-            // Upload file to Supabase storage and save metadata to database
+            // Check if this is a Google Drive file
+            const isGoogleDriveFile = file.googleDriveId !== undefined;
+            
+            // Save metadata to Supabase (but don't upload the file itself if from Google Drive)
             try {
-                console.log('Uploading file to Supabase...');
-                const { storagePath, publicUrl } = await uploadAudioFile(file);
+                let storagePath, publicUrl;
+                
+                if (isGoogleDriveFile) {
+                    // For Google Drive files, store the Drive ID instead of uploading
+                    console.log('Saving Google Drive file metadata...');
+                    storagePath = `googledrive://${file.googleDriveId}`;
+                    publicUrl = null; // Not needed for Google Drive
+                } else {
+                    // For local files, upload to Supabase storage
+                    console.log('Uploading file to Supabase...');
+                    const uploadResult = await uploadAudioFile(file);
+                    storagePath = uploadResult.storagePath;
+                    publicUrl = uploadResult.publicUrl;
+                }
                 
                 // Extract cover art from blob URL if present
                 let coverUrl = null;
                 if (info.cover && info.cover.startsWith('blob:')) {
                     // For blob URLs, we'll just use the publicUrl placeholder
                     // In a real app, you might upload the cover separately
-                    coverUrl = publicUrl.replace(/m4b.*$/, 'cover.jpg');
+                    if (publicUrl) {
+                        coverUrl = publicUrl.replace(/m4b.*$/, 'cover.jpg');
+                    }
                 }
                 
                 console.log('Saving to library...');
@@ -211,10 +228,14 @@ export default function AudiobookPage({ onLogout }) {
                 setCurrentFileId(libraryEntry.id);
                 currentFileIdRef.current = libraryEntry.id;
                 
-                console.log('File uploaded and saved to Supabase successfully');
+                if (isGoogleDriveFile) {
+                    console.log('Google Drive file metadata saved to library');
+                } else {
+                    console.log('File uploaded and saved to Supabase successfully');
+                }
             } catch (supabaseErr) {
-                console.error('Failed to upload to Supabase:', supabaseErr);
-                alert('Failed to upload to cloud storage. Please check your Supabase configuration:\n\n' + supabaseErr.message);
+                console.error('Failed to save to Supabase:', supabaseErr);
+                alert('Failed to save to library. Please check your Supabase configuration:\n\n' + supabaseErr.message);
                 throw supabaseErr;
             }
         } catch (error) {
@@ -395,32 +416,40 @@ export default function AudiobookPage({ onLogout }) {
             // If file is a URL (string), we can't parse it, must use stored chapters
             const isUrl = typeof file === 'string';
             
+            let coverArt = libraryEntry.cover_url || null;
+            
             if (!isUrl && chapters.length === 0) {
                 console.log('No stored chapters, parsing file...');
                 const { chapters: extractedChapters } = await parseM4BChapters(file);
                 chapters = extractedChapters;
             }
             
+            // Extract cover art from file if not stored in database
+            if (!isUrl && !coverArt) {
+                console.log('No stored cover, extracting from file...');
+                const { info } = await parseM4BChapters(file);
+                coverArt = info.cover || null;
+            }
+            
             setChapters(chapters);
             setBookInfo({
                 title: libraryEntry.title || 'Unknown',
                 artist: libraryEntry.artist || 'Unknown Artist',
-                cover: libraryEntry.cover_url || null,
+                cover: coverArt,
             });
+            
+            // Set the file ID BEFORE setting the audio file
+            setCurrentFileId(fileId);
+            currentFileIdRef.current = fileId;
             
             // For URL-based files, use URL directly; for blobs, create new File object
             if (isUrl) {
                 setAudioFile(file); // file is the URL string
             } else {
                 // Force audio remount by creating new file object
-                const newFile = new File([file], file.name, { type: file.type });
+                const newFile = new File([file], libraryEntry.file_name || file.name, { type: file.type });
                 setAudioFile(newFile);
             }
-            // This ensures clean state when switching between library items
-            const newFile = new File([file], file.name, { type: file.type });
-            setAudioFile(newFile);
-            setCurrentFileId(fileId);
-            currentFileIdRef.current = fileId;
 
             // Load saved playback position (ensure it's a valid number)
             const playbackPosition = typeof libraryEntry.playbackPosition === 'number' 

@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Upload, BookOpen, Link as LinkIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '../ui/button';
+import GoogleDrivePicker from './GoogleDrivePicker';
 
 export default function FileUploader({ onFileSelect, onUrlSubmit, isLoading }) {
     const [showUrlInput, setShowUrlInput] = useState(false);
@@ -161,6 +162,11 @@ export default function FileUploader({ onFileSelect, onUrlSubmit, isLoading }) {
                 >
                     <p className="text-slate-500 text-sm">📚 Upload an M4B audiobook file to start listening</p>
                     
+                    {/* Google Drive Picker */}
+                    <div className="max-w-md mx-auto">
+                        <GoogleDrivePicker onFileSelect={onFileSelect} isLoading={isLoading} />
+                    </div>
+
                     {/* Add from URL button */}
                     <div>
                         <Button

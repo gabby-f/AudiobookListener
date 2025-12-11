@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Music } from 'lucide-react';
-import { getLibrary, deleteLibraryEntry, downloadAudioFile } from '../../utils/supabaseClient';
+import { getLibrary, deleteLibraryEntry, downloadAudioFile, getPlaybackState } from '../../utils/supabaseClient';
+import { downloadDriveFile } from '../../utils/googleDriveClient';
+import { getCachedAudiobookFile, cacheAudiobookFile } from '../../utils/indexedDB';
+import { extractM4BMetadata } from '../../utils/m4bParser';
 
 export default function Library({ onSelectFile, onLoadingChange }) {
   const [libraryItems, setLibraryItems] = useState([]);
+  const [playbackStates, setPlaybackStates] = useState({});
+  const [coverUrls, setCoverUrls] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,6 +19,41 @@ export default function Library({ onSelectFile, onLoadingChange }) {
     try {
       const items = await getLibrary();
       setLibraryItems(items);
+      
+      // Load playback states for all items
+      const states = {};
+      for (const item of items) {
+        const state = await getPlaybackState(item.id);
+        if (state) {
+          states[item.id] = state;
+        }
+      }
+      setPlaybackStates(states);
+      
+      // Extract covers from cached Google Drive files
+      const covers = {};
+      for (const item of items) {
+        // Skip if already has cover_url
+        if (item.cover_url) continue;
+        
+        // Check if it's a Google Drive file
+        if (item.storage_path.startsWith('googledrive://')) {
+          const driveFileId = item.storage_path.replace('googledrive://', '');
+          const cachedFile = await getCachedAudiobookFile(driveFileId);
+          
+          if (cachedFile) {
+            try {
+              const metadata = await extractM4BMetadata(cachedFile);
+              if (metadata.cover) {
+                covers[item.id] = metadata.cover;
+              }
+            } catch (err) {
+              console.error('Failed to extract cover for', item.title, err);
+            }
+          }
+        }
+      }
+      setCoverUrls(covers);
     } catch (err) {
       console.error('Failed to load library:', err);
     } finally {
@@ -39,12 +79,38 @@ export default function Library({ onSelectFile, onLoadingChange }) {
     try {
       console.log('Loading audiobook:', item.storage_path);
       
-      // Check if this is a URL or a Supabase storage path
+      // Check if this is a Google Drive file
+      const isGoogleDrive = item.storage_path.startsWith('googledrive://');
       const isUrl = item.storage_path.startsWith('http://') || item.storage_path.startsWith('https://');
       
       let fileBlob;
-      if (isUrl) {
-        // For external URLs (Google Drive/Dropbox), just use the URL directly
+      if (isGoogleDrive) {
+        // Extract Google Drive file ID and download it
+        const driveFileId = item.storage_path.replace('googledrive://', '');
+        
+        // Try to load from cache first
+        console.log('Checking cache for Google Drive file:', driveFileId);
+        let cachedFile = await getCachedAudiobookFile(driveFileId);
+        
+        if (cachedFile) {
+          console.log('✓ Loaded from cache (instant)');
+          fileBlob = cachedFile;
+        } else {
+          console.log('Downloading from Google Drive:', driveFileId);
+          const blob = await downloadDriveFile(driveFileId);
+          
+          // Create File object from blob
+          fileBlob = new File([blob], item.file_name, { type: 'audio/mp4' });
+          
+          // Cache it for next time
+          console.log('Caching file for faster future loads...');
+          await cacheAudiobookFile(driveFileId, fileBlob);
+          console.log('✓ File cached');
+        }
+        
+        fileBlob.googleDriveId = driveFileId;
+      } else if (isUrl) {
+        // For external URLs (Dropbox), just use the URL directly
         console.log('Loading from external URL');
         fileBlob = item.storage_path; // Pass the URL as-is
       } else {
@@ -63,6 +129,20 @@ export default function Library({ onSelectFile, onLoadingChange }) {
         file: fileBlob,
         fileId: item.id
       };
+      
+      // Fetch playback state from Supabase
+      console.log('Fetching playback state for library entry:', item.id);
+      const playbackState = await getPlaybackState(item.id);
+      
+      if (playbackState) {
+        console.log('Found saved playback position:', playbackState.current_position);
+        entry.playbackPosition = playbackState.current_position;
+        entry.volume = playbackState.volume;
+        entry.speed = playbackState.playback_speed;
+      } else {
+        console.log('No saved playback state found');
+        entry.playbackPosition = 0;
+      }
       
       onSelectFile(item.id, entry);
     } catch (err) {
@@ -119,9 +199,9 @@ export default function Library({ onSelectFile, onLoadingChange }) {
           onClick={() => handleSelectFile(item)}
           className="flex gap-4 p-4 bg-gray-800 hover:bg-gray-700 rounded-lg cursor-pointer transition-colors group"
         >
-          {item.cover_url ? (
+          {item.cover_url || coverUrls[item.id] ? (
             <img
-              src={item.cover_url}
+              src={item.cover_url || coverUrls[item.id]}
               alt={item.title}
               className="w-16 h-16 object-cover rounded flex-shrink-0"
             />
@@ -135,7 +215,17 @@ export default function Library({ onSelectFile, onLoadingChange }) {
             <h3 className="font-semibold text-white truncate">{item.title}</h3>
             <p className="text-sm text-gray-400 truncate">{item.artist}</p>
             <div className="flex gap-3 mt-2 text-xs text-gray-500">
-              <span>{formatDuration(item.duration)}</span>
+              <span>
+                {playbackStates[item.id]?.current_position > 0 ? (
+                  <>
+                    <span className="text-purple-400">{formatDuration(playbackStates[item.id].current_position)}</span>
+                    <span className="text-gray-600"> / </span>
+                    <span>{formatDuration(item.duration)}</span>
+                  </>
+                ) : (
+                  formatDuration(item.duration)
+                )}
+              </span>
               {item.created_at && <span>{formatDate(item.created_at)}</span>}
             </div>
           </div>
